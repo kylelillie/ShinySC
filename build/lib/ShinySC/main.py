@@ -3,6 +3,7 @@ import pandas as pd
 import urllib.parse
 import json
 from datetime import datetime
+from pprint import pprint
 
 class ssc:
 
@@ -57,7 +58,7 @@ class ssc:
         
         return tmp,sel
     
-    def _parse_filters(filters):
+    def _parse_filters(filters,id,lang='en'):
         """
         Takes user-defined filters as a dictionary and
         transforms it to use in the StatCan URL.
@@ -72,11 +73,40 @@ class ssc:
         #There will be some "easy" filters, like '503' to select all CMAs in geography
         #...though I guess that would be applied after the table is downloaded
 
-        enc = urllib.parse.quote(filters)
+        tmp = ssc.full_metadata(id)
+        dim = tmp['dimension']
+
+        new_filters = []
+
+        for i in range(0,len(dim)):
+
+            dim_name = dim[i][f'dimensionName{lang.capitalize()}']
+
+            if dim_name in filters:
+
+                selected_names = filters[dim_name]
+                selected_ids = []
+
+                for j in dim[i]['member']:
+
+                    if j[f'memberName{lang.capitalize()}'] in selected_names:
+                        selected_ids.append(j['memberId'])
+
+                new_filters.append(selected_ids)
+
+            else:
+                #Select all members if not specified in filters
+                selected_ids = []
+                for j in dim[i]['member']:
+                    selected_ids.append(j['memberId'])
+                new_filters.append(selected_ids)
+        
+        raw = json.dumps(new_filters, separators=(',',':'))
+        enc = urllib.parse.quote(raw)
 
         return enc
 
-    def full_metadata(id, timeout=30, lang='all'):
+    def full_metadata(id, timeout=30, lang='en'):
         """
         Retrieves metadata for a cube (table) from Statistics Canada WDS.
 
@@ -142,7 +172,7 @@ class ssc:
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Failed to parse JSON response: {e}") from e
 
-    def simple_metadata(id, lang='all'):
+    def simple_metadata(id, lang='en'):
         """
         Retrieves and displays simplified metadata for a cube (table).\n
         This will only show productId, cubeTitle, cubeEndDate, cubeStartDate, and a simplified dimension.
@@ -194,7 +224,7 @@ class ssc:
 
         return attributes
 
-    def get_table(id='',periods='',start='',end='',full=True,filters={},region_type='',lang='en'):
+    def get_table(id='',periods='',start='',end='',full=False,filters={},region_type='',lang='en'):
         """
         Downloads a table from Statistics Canada using custom filters.
         Default language is English ('en')
@@ -213,26 +243,27 @@ class ssc:
 
         if archived == '1': print(f'ADVISORY: This table has been archived and does not get updated. Last updated: {lastUpdated}')
 
+        if filters == {} and not full:
+            print('No filters specified. Downloading full table instead.')
+            full = True
+
         if full:
             dim = md['dimension']
             dim,selected = ssc._parse_dim(dim,full)
-            #print(dim,selected)
             raw = json.dumps(selected, separators=(',',':'))
             filters = urllib.parse.quote(raw)
-            #filters = '%5B%5B15%5D%2C%5B1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10%2C11%2C12%5D%5D'
 
         else:
-            ssc._parse_filters(filters)
+            filters = ssc._parse_filters(filters,id,lang)
 
-        #url = 'https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid=3510000301&latestN=5&startDate=&endDate=&csvLocale=en&selectedMembers=%5B%5B15%5D%2C%5B1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10%2C11%2C12%5D%5D&checkedLevels=0D1%2C0D1%2C0D2%2C0D3'
-        url = f'https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid={id}01&latestN={periods}&startDate={start}&endDate={end}&csvLocale={lang}&selectedMembers={filters}&checkedLevels=0D1%2C0D1%2C0D2%2C0D3'
+        url = f'https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid={id}01&latestN={periods}&startDate={start}&endDate={end}&csvLocale={lang}&selectedMembers={filters}&checkedLevels='
         
         if full: print('ADVSIORY: Unfiltered tables can be very large')
         print(f'Custom URL: {url}')
         
         try:
             df = pd.read_csv(url)
-            display(df[:5])
+            display(df)
 
             if region_type != '':
                 df = df[df.DGUID.str[6:9] == region_type]
@@ -309,4 +340,8 @@ class ssc:
                 print(id,' - ',tablename,'\n',attributes)
                 #get_table(id=id,n=n,enc=enc)#region_type='503')
                 
-                #count += 1
+                count += 1
+
+                if count > 5:
+                    break
+                    
