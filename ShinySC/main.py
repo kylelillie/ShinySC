@@ -310,16 +310,4 @@ class ssc:
                 print(id,' - ',tablename,'\n',attributes)
                 #get_table(id=id,n=n,enc=enc)#region_type='503')
                 
-                count += 1
-
-                if count > 5:
-                    break
-                    
-if __main__:
-    
-    #meta = ssc.full_metadata(id=35100003,lang='en')
-    #meta = ssc.simple_metadata(id=35100003,lang='en')
-    ssc.instructions()
-    att = ssc.describe(35100003)
-    display(att)
-    #df = ssc.get_table(id=35100003,periods=1)
+                #count += 1
