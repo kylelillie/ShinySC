@@ -1,0 +1,10 @@
+LICENSE.txt
+README.md
+setup.py
+ShinySC/__init__.py
+ShinySC/main.py
+ShinySC.egg-info/PKG-INFO
+ShinySC.egg-info/SOURCES.txt
+ShinySC.egg-info/dependency_links.txt
+ShinySC.egg-info/requires.txt
+ShinySC.egg-info/top_level.txt

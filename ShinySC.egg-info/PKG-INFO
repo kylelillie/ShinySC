@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: ShinySC
+Version: 0.5.0
+Summary: This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines.
+Author: Kyle Lillie
+Classifier: Programming Language :: Python 3
+Classifier: License :: GPL-3.0-or-later
+Requires-Python: >=3.10
+License-File: LICENSE.txt
