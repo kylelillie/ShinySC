@@ -10,6 +10,7 @@ setup(
         'Programming Language :: Python 3',
         'License :: GPL-3.0-or-later'
     ],
+    py_modules=['main'],
     python_requires='>=3.10',
     install_requires=[
         'pandas',

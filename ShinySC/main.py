@@ -3,7 +3,6 @@ import pandas as pd
 import urllib.parse
 import json
 from datetime import datetime
-from pprint import pprint
 
 class ssc:
 
