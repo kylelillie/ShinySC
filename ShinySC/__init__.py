@@ -1,0 +1,2 @@
+import ShinySC
+ShinySC.main()

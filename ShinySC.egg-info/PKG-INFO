@@ -3,7 +3,7 @@ Name: ShinySC
 Version: 0.1.0
 Summary: This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines.
 Author: Kyle Lillie
-Keywords: Statistics Canada,StatCan,API
+Keywords: Statistics Canada,StatCan,StatsCan,API
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE.txt
