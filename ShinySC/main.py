@@ -3,8 +3,6 @@ import pandas as pd
 import urllib.parse
 import json
 from datetime import datetime
-from pprint import pprint
-
 
 def _table_info(id='',lang='en'):
     """
@@ -63,7 +61,7 @@ def _parse_filters(filters,id,lang='en'):
     #There will be some "easy" filters, like '503' to select all CMAs in geography
     #...though I guess that would be applied after the table is downloaded
 
-    tmp = ssc.full_metadata(id)
+    tmp = full_metadata(id)
     dim = tmp['dimension']
 
     new_filters = []
@@ -201,7 +199,7 @@ def describe(id, lang='en'):
     """
     attributes = {}
     md = full_metadata(id,30,lang)
-    #print(md)
+
     attributes['name'] = md[f'cubeTitle{lang.capitalize()}']
     attributes['productId'] = id
     attributes['status'] = 'Active' if md['archiveStatusCode'] == '2' else 'Archived'
