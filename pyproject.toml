@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ShinySC"
+version = "0.5.0"
+description = "This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+keywords = ["Statistics Canada", "StatCan", "API"]
+authors = [
+  {name = "Kyle Lillie"},
+]
+dependencies = [
+  "requests>=2.28.0",
+  "pandas">=2.10.0,
+  "urllib",
+  "json",
+  "datetime"
+]
