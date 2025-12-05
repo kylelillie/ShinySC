@@ -1,4 +1,3 @@
-import ShinySC
 from .main import describe
 from .main import get_table
 from .main import instructions
