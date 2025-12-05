@@ -7,10 +7,6 @@ from pprint import pprint
 
 class ssc:
 
-    def __init__(self,id=''):
-
-        self.id = id
-
     #Be able to get data for a specific table []
     #Be able to get data for all tables in a specific category []
     #Be able to get data for all tables []
