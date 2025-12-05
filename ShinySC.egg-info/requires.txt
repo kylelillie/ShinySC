@@ -1,5 +1,5 @@
-pandas
-requests
+requests>=2.28.0
+pandas>=2.10.0
 urllib
 json
 datetime
