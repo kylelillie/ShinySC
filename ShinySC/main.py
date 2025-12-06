@@ -2,6 +2,13 @@ import json
 import requests
 import urllib.parse
 from datetime import datetime
+from xml.etree import ElementTree
+
+_cached_metadata = None
+
+_codes_xml = requests.get('https://www.statcan.gc.ca/sites/default/files/documents/codeset.xml')
+_codes_xml = ElementTree.fromstring(_codes_xml.text)
+
 
 def _table_info(id='',lang='en'):
     """
@@ -106,6 +113,7 @@ def full_metadata(id, timeout=30, lang='en'):
         dict: JSON response object converted to Python dict.
     """
 
+    global _cached_metadata
     endpoint = "https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata"
 
     # Prepare payload as list of dicts, per documentation example. :contentReference[oaicite:2]{index=2}
@@ -145,13 +153,15 @@ def full_metadata(id, timeout=30, lang='en'):
             raise RuntimeError(f"Request returned non-SUCCESS status: {data}")
         
         if lang == 'en':
-            return _remove_lang(data[0]['object'],'Fr')
+            _cached_metadata = _remove_lang(data[0]['object'],'Fr')
         
         elif lang == 'fr':
-            return _remove_lang(data[0]['object'],'En')
+            _cached_metadata = _remove_lang(data[0]['object'],'En')
         
         else:
-            return data[0]['object']
+            _cached_metadata = data[0]['object']
+        
+        return _cached_metadata
     
     except requests.RequestException as e:
         raise RuntimeError(f"HTTP request failed: {e}") from e
@@ -168,7 +178,12 @@ def simple_metadata(id, lang='en'):
         id (int or str): The product ID (PID)
         lang (str): The language ('en' or 'fr')
     """
-    meta = full_metadata(id,30,lang)
+    global _cached_metadata
+
+    if _cached_metadata == None:
+        full_metadata(id,30,lang)
+
+    meta = _cached_metadata
 
     keep = ['productId',f'cubeTitle{lang.capitalize}','cubeEndDate','cubeStartDate','dimension']
 
@@ -196,8 +211,14 @@ def describe(id, lang='en'):
         id (str, int): productId
         lang (str): The language ('en' or 'fr')
     """
+
+    global _cached_metadata
     attributes = {}
-    md = full_metadata(id,30,lang)
+
+    if _cached_metadata == None:
+        full_metadata(id,30,lang)
+
+    md = _cached_metadata
 
     attributes['name'] = md[f'cubeTitle{lang.capitalize()}']
     attributes['productId'] = id
@@ -211,7 +232,7 @@ def describe(id, lang='en'):
 
     return attributes
 
-def get_table(id='',periods=1,start='',end='',full=False,filters={},region_type='',lang='en'):
+def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='',lang='en'):
     """
     Downloads a table from Statistics Canada using custom filters.
     Default language is English ('en')
@@ -226,9 +247,13 @@ def get_table(id='',periods=1,start='',end='',full=False,filters={},region_type=
         filters (dict): filters you wish to apply ('attribute':[...],...)
         lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
+    global _cached_metadata
 
     try:
-        md = full_metadata(id,30,lang)
+        if _cached_metadata == None:
+            full_metadata(id,30,lang)
+
+        md = _cached_metadata
     except:
         print('Invalid productId.')
         return ''
@@ -261,6 +286,9 @@ def get_table(id='',periods=1,start='',end='',full=False,filters={},region_type=
         df = df[df.DGUID.str[6:9] == region_type]
 
     return url
+
+def find_tables(text_query='',status='',last_updated='',data_dates=[],subject=''):
+    pass
 
 def list_tables(lang='en'):
 
