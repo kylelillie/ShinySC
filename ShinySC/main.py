@@ -1,7 +1,6 @@
-import requests
-import pandas as pd
-import urllib.parse
 import json
+import requests
+import urllib.parse
 from datetime import datetime
 
 def _table_info(id='',lang='en'):
@@ -212,55 +211,56 @@ def describe(id, lang='en'):
 
     return attributes
 
-def get_table(id='',periods='',start='',end='',full=False,filters={},region_type='',lang='en'):
+def get_table(id='',periods=1,start='',end='',full=False,filters={},region_type='',lang='en'):
     """
     Downloads a table from Statistics Canada using custom filters.
     Default language is English ('en')
+    Returns a URL that can be downloaded with your favourite library.
 
     Args:
         id (int, str): productId
-        periods (int): number of periods you wish to download
+        periods (int): number of recent periods you wish to download (default is 1)
+        start (str): desired start date for data series (YYYY-MM-DD)
+        end (str): desired end date for data series (YYYY-MM-DD)
         full (bool): download the full table or not (default True)
-        filters (dict): filters you wish to apply
+        filters (dict): filters you wish to apply ('attribute':[...],...)
         lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
-    md = full_metadata(id,30,lang)
-    tablename = md['cubeTitleEn']
+
+    try:
+        md = full_metadata(id,30,lang)
+    except:
+        print('Invalid productId.')
+        return ''
+
+    #tablename = md['cubeTitleEn']
     archived = md['archiveStatusCode']
     lastUpdated = md['releaseTime']
+    checked_levels = ''
 
     if archived == '1': print(f'ADVISORY: This table has been archived and does not get updated. Last updated: {lastUpdated}')
 
     if filters == {} and not full:
-        print('No filters specified. Downloading full table instead.')
+        print('ADVISORY: No filters specified. Generating URL for the full table. Full tables can be very large.')
         full = True
 
     if full:
         dim = md['dimension']
         dim,selected = _parse_dim(dim,full)
         raw = json.dumps(selected, separators=(',',':'))
+        #checked_levels = '%2C1%2C2%2C3'
+        #filters = ''
         filters = urllib.parse.quote(raw)
 
     else:
         filters = _parse_filters(filters,id,lang)
 
     url = f'https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid={id}01&latestN={periods}&startDate={start}&endDate={end}&csvLocale={lang}&selectedMembers={filters}&checkedLevels='
-    
-    if full: print('ADVSIORY: Unfiltered tables can be very large')
-    print(f'Custom URL: {url}')
-    
-    try:
-        df = pd.read_csv(url)
-        display(df)
 
-        if region_type != '':
-            df = df[df.DGUID.str[6:9] == region_type]
-        
-        if df.columns == ['Failed to open stream for the full cube download']:
-            print('Failed to open stream. Downloaded file was empty.')
+    if region_type != '':
+        df = df[df.DGUID.str[6:9] == region_type]
 
-    except Exception as e:
-        print(f'Table download failed: {e}')
+    return url
 
 def list_tables(lang='en'):
 

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='ShinySC',
-    version='0.1.3',
+    version='0.1.4',
     author='Kyle Lillie',
     description='This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines.',
     packages=find_packages(),
@@ -13,8 +13,7 @@ setup(
     py_modules=['main'],
     python_requires='>=3.10',
     install_requires=[
-        'pandas',
-        'requests',
+        'requests>=2.28.0',
         'urllib',
         'json',
         'datetime'
