@@ -61,7 +61,6 @@ def _remove_lang(obj,language):
         return obj
 
 
-
 def _search_json_regex(obj, pattern):
     """
     Recursively search through a JSON-like structure using a regex pattern.
@@ -119,7 +118,6 @@ def _search_json_regex(obj, pattern):
         if isinstance(obj, str) and bool(regex.search(obj)):
             return obj
         return None
-
 
 
 def _search_json(obj, term):
@@ -543,6 +541,3 @@ def list_tables(lang='en'):
             #get_table(id=id,n=n,enc=enc)#region_type='503')
             
             count += 1
-
-
-search(query='Income')
