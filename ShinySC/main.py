@@ -1,16 +1,16 @@
+import re
 import json
 import requests
 import urllib.parse
 from datetime import datetime
-from xml.etree import ElementTree
 
 _cached_metadata = None
+_cached_cube_list = None
 
-_codes_xml = requests.get('https://www.statcan.gc.ca/sites/default/files/documents/codeset.xml')
-_codes_xml = ElementTree.fromstring(_codes_xml.text)
+_codes = requests.get('https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets')
+_codes = _codes.json()
 
-
-def _table_info(id='',lang='en'):
+def _cube_list(id='',lang='en'):
     """
     Retrieves information about a cube (table).
 
@@ -19,18 +19,164 @@ def _table_info(id='',lang='en'):
         lang (str): The language ('en' or 'fr')
     """
 
+    global _cached_cube_list
+
     try:
-        url = "https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList"
-        resp = requests.get(url)
-        table = resp.json()
+        if _cached_cube_list == None:
+            url = "https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList"
+            resp = requests.get(url)
+            table = resp.json()
+            _cached_cube_list = table
+
+        else:
+            table = _cached_cube_list
+
     except Exception as e:
         print('Failed to find "getAllCubesList" on WDS')
+
+    if id == '':
+        return table
 
     for i in table:
         if i['productId'] == id: return i
     else:
         print(f'Table {id} not found.')
+
+def _remove_lang(obj,language):
     
+    language = 'En' if language == 'en' else 'Fr'
+
+    if isinstance(obj, dict):
+        
+        obj = {k: _remove_lang(v,language) for k, v in obj.items() if not k.endswith(language)}
+
+        for k in obj.keys():
+            if isinstance(obj[k],list):
+                if len(obj[k]) > 0:
+                    if isinstance(obj[k][0],dict):
+                        obj[k] = [_remove_lang(i,language) for i in obj[k]]
+        return obj
+    
+    else:
+        return obj
+
+
+
+def _search_json_regex(obj, pattern):
+    """
+    Recursively search through a JSON-like structure using a regex pattern.
+
+    Keep entries if:
+        - key matches regex
+        - OR value (string) matches regex
+        - OR nested match
+        - OR sibling key includes 'code' when any match occurs inside same dict
+    """
+
+    regex = re.compile(pattern)
+
+    # Case 1: dict
+    if isinstance(obj, dict):
+        matches = {}
+        matched_in_dict = False
+        child_results = {}
+
+        # First pass: detect matches
+        for k, v in obj.items():
+            key_match = bool(regex.search(k))
+            value_match = isinstance(v, str) and bool(regex.search(v))
+
+            nested = None
+            if isinstance(v, (dict, list)):
+                nested = _search_json_regex(v, pattern)
+
+            if key_match or value_match or nested:
+                matched_in_dict = True
+                child_results[k] = nested if nested is not None else v
+
+        # Second pass: include sibling "code" keys if needed
+        if matched_in_dict:
+            for k, v in obj.items():
+                if "code" in k and k not in child_results:
+                    child_results[k] = v
+
+        return child_results if child_results else None
+
+    # Case 2: list
+    elif isinstance(obj, list):
+        results = []
+        for item in obj:
+            nested = _search_json_regex(item, pattern)
+            value_match = isinstance(item, str) and bool(regex.search(item))
+
+            if nested is not None or value_match:
+                results.append(nested if nested is not None else item)
+
+        return results if results else None
+
+    # Case 3: primitive
+    else:
+        if isinstance(obj, str) and bool(regex.search(obj)):
+            return obj
+        return None
+
+
+
+def _search_json(obj, term):
+    """
+    Recursively search JSON-like structures.
+    Keep entries if:
+      - key contains term
+      - OR value contains term
+      - OR nested match
+      - OR sibling key contains "code" when any match occurs in the same dict
+    """
+    # Case 1: dict
+    if isinstance(obj, dict):
+        matches = {}              # matches found in this dict
+        matched_in_dict = False   # flag so we can keep sibling "code" keys
+
+        # First pass: detect matches
+        child_results = {}
+        for k, v in obj.items():
+            key_match = term in k
+            value_match = isinstance(v, str) and term in v
+
+            nested = None
+            if isinstance(v, (dict, list)):
+                nested = _search_json(v, term)
+
+            # If this entry matches directly or via nested
+            if key_match or value_match or nested:
+                matched_in_dict = True
+                child_results[k] = nested if nested is not None else v
+
+        # Second pass: if any match happened, also keep sibling "code" keys
+        if matched_in_dict:
+            for k, v in obj.items():
+                if "Code" in k and k not in child_results:
+                    child_results[k] = v
+
+        return child_results if child_results else None
+
+    # Case 2: list
+    elif isinstance(obj, list):
+        results = []
+        for item in obj:
+            nested = _search_json(item, term)
+            value_match = isinstance(item, str) and term in item
+
+            if nested is not None or value_match:
+                results.append(nested if nested is not None else item)
+
+        return results if results else None
+
+    # Case 3: primitive
+    else:
+        if isinstance(obj, str) and term in obj:
+            return obj
+        return None
+
 def _parse_dim(x,full=True):
 
     tmp = {}
@@ -113,7 +259,6 @@ def full_metadata(id, timeout=30, lang='en'):
         dict: JSON response object converted to Python dict.
     """
 
-    global _cached_metadata
     endpoint = "https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata"
 
     # Prepare payload as list of dicts, per documentation example. :contentReference[oaicite:2]{index=2}
@@ -127,41 +272,23 @@ def full_metadata(id, timeout=30, lang='en'):
         "Content-Type": "application/json"
     }
 
-    def _remove_lang(obj,language):
-        
-        if isinstance(obj, dict):
-            
-            obj = {k: _remove_lang(v,language) for k, v in obj.items() if not k.endswith(language)}
-
-            for k in obj.keys():
-                if isinstance(obj[k],list):
-                    if len(obj[k]) > 0:
-                        if isinstance(obj[k][0],dict):
-                            obj[k] = [_remove_lang(i,language) for i in obj[k]]
-            return obj
-        
-        else:
-            return obj
-
     try:
         response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
         response.raise_for_status()
         data = response.json()
-
+   
         # Check for status
         if data[0]["status"] != "SUCCESS":
             raise RuntimeError(f"Request returned non-SUCCESS status: {data}")
         
         if lang == 'en':
-            _cached_metadata = _remove_lang(data[0]['object'],'Fr')
+            return _remove_lang(data[0]['object'],'Fr')
         
         elif lang == 'fr':
-            _cached_metadata = _remove_lang(data[0]['object'],'En')
+            return _remove_lang(data[0]['object'],'En')
         
         else:
-            _cached_metadata = data[0]['object']
-        
-        return _cached_metadata
+            return data[0]['object']
     
     except requests.RequestException as e:
         raise RuntimeError(f"HTTP request failed: {e}") from e
@@ -178,12 +305,8 @@ def simple_metadata(id, lang='en'):
         id (int or str): The product ID (PID)
         lang (str): The language ('en' or 'fr')
     """
-    global _cached_metadata
 
-    if _cached_metadata == None:
-        full_metadata(id,30,lang)
-
-    meta = _cached_metadata
+    meta = full_metadata(id,30,lang)
 
     keep = ['productId',f'cubeTitle{lang.capitalize}','cubeEndDate','cubeStartDate','dimension']
 
@@ -195,13 +318,21 @@ def instructions():
     print("""
 ---------------------------------------------------------
 If you already know the productId for the table you want,
-call scc.describe(productId) to see available dimensions
+call ShinySC.describe(productId) to see available dimensions
 that can be used for filtering.
             
 You can then copy/paste the key:[values...] you want into
-a variable that is passed into scc.get_table(filters={...})
+a variable that is passed into ShinySC.make_url(filters={...})
+          
+You can search for tables using ShinySC.search() to find 
+data tables by geography, attribute, name, date, subject, etc.
+          
+This library makes use of these endpoints:
+https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets
+https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList
+https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata
 ---------------------------------------------------------
-    """)
+""")
 
 def describe(id, lang='en'):
     """
@@ -212,13 +343,9 @@ def describe(id, lang='en'):
         lang (str): The language ('en' or 'fr')
     """
 
-    global _cached_metadata
     attributes = {}
 
-    if _cached_metadata == None:
-        full_metadata(id,30,lang)
-
-    md = _cached_metadata
+    md = full_metadata(id,30,lang)
 
     attributes['name'] = md[f'cubeTitle{lang.capitalize()}']
     attributes['productId'] = id
@@ -239,13 +366,13 @@ def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='
     Returns a URL that can be downloaded with your favourite library.
 
     Args:
-        id (int, str): productId
-        periods (int): number of recent periods you wish to download (default is 1)
-        start (str): desired start date for data series (YYYY-MM-DD)
-        end (str): desired end date for data series (YYYY-MM-DD)
-        full (bool): download the full table or not (default True)
-        filters (dict): filters you wish to apply ('attribute':[...],...)
-        lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
+        :param id (int, str): productId
+        :param periods (int): number of recent periods you wish to download (default is 1)
+        :param start (str): desired start date for data series (YYYY-MM-DD)
+        :param end (str): desired end date for data series (YYYY-MM-DD)
+        :param full (bool): download the full table or not (default True)
+        :param filters (dict): filters you wish to apply ('attribute':[...],...)
+        :param lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
     global _cached_metadata
 
@@ -287,8 +414,28 @@ def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='
 
     return url
 
-def find_tables(text_query='',status='',last_updated='',data_dates=[],subject=''):
-    pass
+def search(text_query='',status='',last_updated='',data_dates=[],subject='',lang='en'):
+    """
+    Docstring for find_tables
+    
+    :param text_query (str): Table attributes you want to search for (names, geographies, etc.)
+    :param status (str): Active or Archived
+    :param last_updated (str): Description
+    :param data_dates ([str,str]): Description
+    :param subject (str): Description
+    :param lang (str): Language ('en' or 'fr')
+    """
+
+    global _codes
+
+    #Need to look over the code descriptions and grab relevant codes.
+    #Can use this list to filter down datasets that are then searched in name and description
+    print(isinstance(_codes,dict))
+    local_codes = _remove_lang(_codes,'Fr' if lang == 'en' else 'En')
+    local_codes = _search_json(local_codes,r'Business Register')
+    print(local_codes)
+
+
 
 def list_tables(lang='en'):
 

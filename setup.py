@@ -14,7 +14,6 @@ setup(
     python_requires='>=3.10',
     install_requires=[
         'requests>=2.28.0',
-        'xmltodict',
         'urllib',
         'json',
         'datetime'
