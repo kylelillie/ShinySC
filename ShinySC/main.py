@@ -131,6 +131,9 @@ def _search_json(obj, term):
       - OR nested match
       - OR sibling key contains "code" when any match occurs in the same dict
     """
+
+    term = term.lower()
+
     # Case 1: dict
     if isinstance(obj, dict):
         matches = {}              # matches found in this dict
@@ -139,8 +142,8 @@ def _search_json(obj, term):
         # First pass: detect matches
         child_results = {}
         for k, v in obj.items():
-            key_match = term in k
-            value_match = isinstance(v, str) and term in v
+            key_match = term in k.lower()
+            value_match = isinstance(v, str) and term in v.lower()
 
             nested = None
             if isinstance(v, (dict, list)):
@@ -246,7 +249,7 @@ def _parse_filters(filters,id,lang='en'):
 
     return enc
 
-def full_metadata(id, timeout=30, lang='en'):
+def full_metadata(id, timeout=30, lang='en', special=[]):
     """
     Retrieves metadata for a cube (table) from Statistics Canada WDS.
 
@@ -348,6 +351,7 @@ def describe(id, lang='en'):
     md = full_metadata(id,30,lang)
 
     attributes['name'] = md[f'cubeTitle{lang.capitalize()}']
+    attributes['dataPoints'] = md['nbDatapointsCube']
     attributes['productId'] = id
     attributes['status'] = 'Active' if md['archiveStatusCode'] == '2' else 'Archived'
     attributes['dataDateRange'] = [md['cubeStartDate'],md['cubeEndDate']]
@@ -414,7 +418,7 @@ def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='
 
     return url
 
-def search(text_query='',status='',last_updated='',data_dates=[],subject='',lang='en'):
+def search(query='',status='2',last_updated='',data_dates=[],subject='',lang='en'):
     """
     Docstring for find_tables
     
@@ -430,14 +434,49 @@ def search(text_query='',status='',last_updated='',data_dates=[],subject='',lang
 
     #Need to look over the code descriptions and grab relevant codes.
     #Can use this list to filter down datasets that are then searched in name and description
-    print(isinstance(_codes,dict))
+
     local_codes = _remove_lang(_codes,'Fr' if lang == 'en' else 'En')
-    local_codes = _search_json(local_codes,r'Business Register')
-    print(local_codes)
+    local_codes = _search_json(local_codes,query)
 
+    parsed_local_codes = {}
 
+    for k in local_codes['object'].keys():
+        parsed_local_codes[k] = []
+        for i in local_codes['object'][k]:
+            try:
+                parsed_local_codes[k].append(i[f'{k}Code'])
+            except:
+                pass
+    
+    tables = _cube_list()
+    filtered_tables = []
+
+    for t in tables:
+
+        if query.lower() in t[f'cubeTitle{lang.capitalize()}'].lower():
+            if (t['productId'] not in filtered_tables) & (t['archived'] == status):
+                filtered_tables.append(t['productId'])
+
+        for k in parsed_local_codes.keys():
+
+            if  (t['productId'] not in filtered_tables) & (t['archived'] == status):
+                if (k == 'subject') & (len(parsed_local_codes[k]) > 0) & ('subjectCode' in t):
+                    try:
+                        filtered_tables.append(t['productId']) if set(parsed_local_codes[k]).intersection(set(t['subjectCode'])) else None
+                    except:
+                        pass
+
+                if (k == 'survey') & (len(parsed_local_codes[k]) > 0) & (t['surveyCode'] != None):
+                    try:
+                        filtered_tables.append(t['productId']) if set(parsed_local_codes[k]).intersection(set(t['surveyCode'])) else None
+                    except:
+                        pass
+
+    print(f'Found {len(filtered_tables)} tables matching criteria.\n')
+    return filtered_tables
 
 def list_tables(lang='en'):
+
 
     url = "https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList"
     resp = requests.get(url)
@@ -504,3 +543,6 @@ def list_tables(lang='en'):
             #get_table(id=id,n=n,enc=enc)#region_type='503')
             
             count += 1
+
+
+search(query='Income')
