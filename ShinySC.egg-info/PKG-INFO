@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: ShinySC
-Version: 0.1.4
+Version: 0.1.5
 Summary: This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines.
 Author: Kyle Lillie
 Keywords: Statistics Canada,StatCan,StatsCan,API
