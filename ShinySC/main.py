@@ -60,67 +60,7 @@ def _remove_lang(obj,language):
     else:
         return obj
 
-
-def _search_json_regex(obj, pattern):
-    """
-    Recursively search through a JSON-like structure using a regex pattern.
-
-    Keep entries if:
-        - key matches regex
-        - OR value (string) matches regex
-        - OR nested match
-        - OR sibling key includes 'code' when any match occurs inside same dict
-    """
-
-    regex = re.compile(pattern)
-
-    # Case 1: dict
-    if isinstance(obj, dict):
-        matches = {}
-        matched_in_dict = False
-        child_results = {}
-
-        # First pass: detect matches
-        for k, v in obj.items():
-            key_match = bool(regex.search(k))
-            value_match = isinstance(v, str) and bool(regex.search(v))
-
-            nested = None
-            if isinstance(v, (dict, list)):
-                nested = _search_json_regex(v, pattern)
-
-            if key_match or value_match or nested:
-                matched_in_dict = True
-                child_results[k] = nested if nested is not None else v
-
-        # Second pass: include sibling "code" keys if needed
-        if matched_in_dict:
-            for k, v in obj.items():
-                if "code" in k and k not in child_results:
-                    child_results[k] = v
-
-        return child_results if child_results else None
-
-    # Case 2: list
-    elif isinstance(obj, list):
-        results = []
-        for item in obj:
-            nested = _search_json_regex(item, pattern)
-            value_match = isinstance(item, str) and bool(regex.search(item))
-
-            if nested is not None or value_match:
-                results.append(nested if nested is not None else item)
-
-        return results if results else None
-
-    # Case 3: primitive
-    else:
-        if isinstance(obj, str) and bool(regex.search(obj)):
-            return obj
-        return None
-
-
-def _search_json(obj, term):
+def _search_json(obj: dict={}, term: str='', mode: str='AND'):
     """
     Recursively search JSON-like structures.
     Keep entries if:
@@ -130,7 +70,15 @@ def _search_json(obj, term):
       - OR sibling key contains "code" when any match occurs in the same dict
     """
 
-    term = term.lower()
+    mode = mode.upper()
+
+    if mode == "OR":
+        terms = [t.strip() for t in term.split(",") if t.strip()]
+        pattern = re.compile("|".join(map(re.escape, terms)), re.IGNORECASE | re.DOTALL)
+
+    if mode == "AND":
+        regex = "".join(f"(?=.*{re.escape(t)})" for t in term) + ".*"
+        pattern = re.compile(regex, re.IGNORECASE | re.DOTALL)
 
     # Case 1: dict
     if isinstance(obj, dict):
@@ -140,12 +88,16 @@ def _search_json(obj, term):
         # First pass: detect matches
         child_results = {}
         for k, v in obj.items():
-            key_match = term in k.lower()
-            value_match = isinstance(v, str) and term in v.lower()
+            #key_match = term in k.lower()
+            #value_match = isinstance(v, str) and term in v.lower()
+            key_match = bool(pattern.search(k))
+            value_match = isinstance(v, str) and bool(pattern.search(v))
 
             nested = None
+
             if isinstance(v, (dict, list)):
-                nested = _search_json(v, term)
+                #nested = _search_json(v, term)
+                nested = _search_json(v, term, mode)
 
             # If this entry matches directly or via nested
             if key_match or value_match or nested:
@@ -164,8 +116,9 @@ def _search_json(obj, term):
     elif isinstance(obj, list):
         results = []
         for item in obj:
-            nested = _search_json(item, term)
-            value_match = isinstance(item, str) and term in item
+            nested = _search_json(item, term, mode)
+            #value_match = isinstance(item, str) and term in item
+            value_match = isinstance(item, str) and bool(pattern.search(item))
 
             if nested is not None or value_match:
                 results.append(nested if nested is not None else item)
@@ -174,7 +127,8 @@ def _search_json(obj, term):
 
     # Case 3: primitive
     else:
-        if isinstance(obj, str) and term in obj:
+        #if isinstance(obj, str) and term in obj:
+        if isinstance(obj, str) and bool(re.search(obj)):
             return obj
         return None
 
@@ -361,7 +315,7 @@ def describe(id, lang='en'):
 
     return attributes
 
-def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='',lang='en'):
+def make_url(id: str='',periods: int=1,start: str='',end: str='',full: bool=False,filters: dict={},region_type: str='',lang: str='en'):
     """
     Downloads a table from Statistics Canada using custom filters.
     Default language is English ('en')
@@ -416,15 +370,15 @@ def make_url(id='',periods=1,start='',end='',full=False,filters={},region_type='
 
     return url
 
-def search(query='',status='2',last_updated='',data_dates=[],subject='',lang='en'):
+def search(query='',last_updated='',dates=[],status='2',mode='AND',lang='en'):
     """
     Docstring for find_tables
     
-    :param text_query (str): Table attributes you want to search for (names, geographies, etc.)
+    :param query (str): Table attributes you want to search for (names, geographies, etc.)
     :param status (str): Active or Archived
     :param last_updated (str): Description
-    :param data_dates ([str,str]): Description
-    :param subject (str): Description
+    :param dates ([str,str]): Description
+    :param mode (str): 'AND'[default] or 'OR' search mode for query terms
     :param lang (str): Language ('en' or 'fr')
     """
 
@@ -434,7 +388,7 @@ def search(query='',status='2',last_updated='',data_dates=[],subject='',lang='en
     #Can use this list to filter down datasets that are then searched in name and description
 
     local_codes = _remove_lang(_codes,'Fr' if lang == 'en' else 'En')
-    local_codes = _search_json(local_codes,query)
+    local_codes = _search_json(local_codes,query,mode)
 
     parsed_local_codes = {}
 
@@ -470,7 +424,8 @@ def search(query='',status='2',last_updated='',data_dates=[],subject='',lang='en
                     except:
                         pass
 
-    print(f'Found {len(filtered_tables)} tables matching criteria.\n')
+    print(f'Found {len(filtered_tables)} tables matching search criteria, "{query}".\n')
+
     return filtered_tables
 
 def list_tables(lang='en'):
@@ -541,3 +496,4 @@ def list_tables(lang='en'):
             #get_table(id=id,n=n,enc=enc)#region_type='503')
             
             count += 1
+

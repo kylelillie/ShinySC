@@ -13,9 +13,6 @@ setup(
     py_modules=['main'],
     python_requires='>=3.10',
     install_requires=[
-        'requests>=2.28.0',
-        'urllib',
-        'json',
-        'datetime'
+        'requests>=2.28.0'
     ]
 )
