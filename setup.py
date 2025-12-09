@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='ShinySC',
-    version='0.1.6',
+    version='0.1.7',
     author='Kyle Lillie',
     description='This helps you build queries to download custom datatables from Statistics Canada. Ideal for use in data pipelines.',
     packages=find_packages(),

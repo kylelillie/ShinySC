@@ -315,7 +315,7 @@ def describe(id, lang='en'):
 
     return attributes
 
-def make_url(id: str='',periods: int=1,start: str='',end: str='',full: bool=False,filters: dict={},region_type: str='',lang: str='en'):
+def make_url(id: int='',periods: int='',start: str='',end: str='',full: bool=False,filters: dict={},region_type: str='',lang: str='en'):
     """
     Downloads a table from Statistics Canada using custom filters.
     Default language is English ('en')
@@ -334,9 +334,9 @@ def make_url(id: str='',periods: int=1,start: str='',end: str='',full: bool=Fals
 
     try:
         if _cached_metadata == None:
-            full_metadata(id,30,lang)
-
-        md = _cached_metadata
+            md= full_metadata(id,30,lang)
+        else:
+            md = _cached_metadata
     except:
         print('Invalid productId.')
         return ''
