@@ -333,6 +333,27 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},reg
     global _cached_metadata
     full = False
 
+    def vali_date(date_text):
+        try:
+            datetime.strptime(date_text, '%Y-%m-%d')
+            return True
+        except ValueError:
+            return False
+
+    #Validate inputs
+    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+    if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')
+    if (periods != '') & (not isinstance(periods,int)): raise TypeError('Must be integer number of periods to download.')
+
+    if (start != '') & (not(vali_date(start))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+    if (start > datetime.now().strftime('%Y-%m-%d')): raise ValueError('Invalid start date. Cannot be in the future.')
+    if (start > end) & (end != ''): raise ValueError('Start date cannot be after end date.')
+
+    if (end != '') & (not(vali_date(end))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+    if (end < start) & (start != ''): raise ValueError('End date cannot be after start date.')
+
+    if not isinstance(filters,dict): raise ValueError('Filters must be a dictionary of filterName:[values,...].')
+
     try:
         if _cached_metadata == None:
             md= full_metadata(id,30,lang)
