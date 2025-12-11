@@ -3,9 +3,9 @@ A straight-forward wrapper to build customized table links to Statistics Canada 
 
 ShinySC makes use of these StatCan WDS APIs:
 
-https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets
-https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList
-https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata
+https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets   
+https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList  
+https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata  
 
 Customized table links allow for programmatic table customizations and downloading without having to mess around with vectors or data coordinates. With ShinySC you can easily download data for a specific province, time period, table subject by passing in a productId (StatCan table number) and your query terms.
 
