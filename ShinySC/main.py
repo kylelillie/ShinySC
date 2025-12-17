@@ -315,7 +315,7 @@ def describe(id, lang='en'):
 
     return attributes
 
-def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},region_type: str='',lang: str='en'):
+def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},lang: str='en'):
     """
     Downloads a table from Statistics Canada using custom filters.
     Default language is English ('en')
@@ -356,7 +356,8 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},reg
 
     try:
         if _cached_metadata == None:
-            md= full_metadata(id,30,lang)
+            md = full_metadata(id,30,lang)
+
         else:
             md = _cached_metadata
     except:
@@ -367,7 +368,6 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},reg
 
     archived = md['archiveStatusCode']
     lastUpdated = md['releaseTime']
-    checked_levels = ''
 
     if archived == '1': print(f'ADVISORY: This table has been archived and does not get updated. Last updated: {lastUpdated}')
 
@@ -391,9 +391,6 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},reg
         end = md['cubeEndDate']
 
     url = f'https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid={id}01&latestN={periods}&startDate={start}&endDate={end}&csvLocale={lang}&selectedMembers={filters}&checkedLevels='
-
-    if region_type != '':
-        df = df[df.DGUID.str[6:9] == region_type]
 
     return url
 
