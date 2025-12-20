@@ -4,11 +4,34 @@ import requests
 import urllib.parse
 from datetime import datetime
 
+print('Getting data from Statistics Canada WDS.')
+
 _cached_metadata = None
 _cached_cube_list = None
 
 _codes = requests.get('https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets')
 _codes = _codes.json()
+
+print('Ready.')
+
+def _fmt_id(id):
+    id = str(id)
+
+    if id.count('-') == 3:
+        a,b,c = id.split('-')
+        return a+b
+    
+    if len(id) == 10:
+        return id.replace('-','')
+    
+    return id
+
+def _vali_date(date_text):
+    try:
+        datetime.strptime(date_text, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
 
 def _cube_list(id='',lang='en'):
     """
@@ -272,20 +295,39 @@ def simple_metadata(id, lang='en'):
 def instructions():
     print("""
 ---------------------------------------------------------
-If you already know the productId for the table you want,
-call ShinySC.describe(productId) to see available dimensions
-that can be used for filtering.
-            
-You can then copy/paste the key:[values...] you want into
-a variable that is passed into ShinySC.make_url(filters={...})
           
-You can search for tables using ShinySC.search() to find 
-data tables by geography, attribute, name, date, subject, etc.
+If you already know the productId and filters for the table 
+you want, simply call:
+          
+          url = ShinySC.make_url(fitlers={...})
+
+Addtionally, you can specify date ranges or number of recent periods:
+          
+            url = ShinySC.make_url(periods=5)
+            url = ShinySC.make_url(start='2020-01-01',end='2022-01-01')
+
+If you don't know what table you want, you can programmatically
+search for tables that match your criteria using:
+          
+        ShinySC.search(query,last_updated,dates,status)
+
+        query: terms to search for in table names, descriptions, and surveys
+        last_updated: 'YYYY-MM-DD' to search for in last updated field
+        dates: list of two strings [start_date,end_date] to filter tables by date range
+        status: 'active' or 'archived' tables
+          
+Call ShinySC.describe(productId) to see available dimensionsthat can be used for filtering.
+          
+Call ShinySC.update_list(date='YYYY-MM-DD') to see recently updated tables for a specfiic date.
+Add in a productId to see if that specific table was updated on that date.
+          ShinySC.update_list(id=35100003,date='2023-01-01')
           
 This library makes use of these endpoints:
 https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets
 https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList
 https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata
+https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList
+          
 ---------------------------------------------------------
 """)
 
@@ -333,23 +375,16 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},lan
     global _cached_metadata
     full = False
 
-    def vali_date(date_text):
-        try:
-            datetime.strptime(date_text, '%Y-%m-%d')
-            return True
-        except ValueError:
-            return False
-
     #Validate inputs
     if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
     if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')
     if (periods != '') & (not isinstance(periods,int)): raise TypeError('Must be integer number of periods to download.')
 
-    if (start != '') & (not(vali_date(start))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+    if (start != '') & (not(_vali_date(start))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
     if (start > datetime.now().strftime('%Y-%m-%d')): raise ValueError('Invalid start date. Cannot be in the future.')
     if (start > end) & (end != ''): raise ValueError('Start date cannot be after end date.')
 
-    if (end != '') & (not(vali_date(end))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+    if (end != '') & (not(_vali_date(end))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
     if (end < start) & (start != ''): raise ValueError('End date cannot be after start date.')
 
     if not isinstance(filters,dict): raise ValueError('Filters must be a dictionary of filterName:[values,...].')
@@ -394,7 +429,7 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},lan
 
     return url
 
-def search(query='',last_updated='',dates=[],status='2',mode='AND',lang='en'):
+def search(query='',last_updated='',dates=[],status='active',mode='AND',lang='en'):
     """
     Docstring for find_tables
     
@@ -410,6 +445,13 @@ def search(query='',last_updated='',dates=[],status='2',mode='AND',lang='en'):
 
     #Need to look over the code descriptions and grab relevant codes.
     #Can use this list to filter down datasets that are then searched in name and description
+
+    if status == 'active':
+        status = '2'
+    elif status == 'archived':
+        status = '1'
+    else:
+        raise ValueError('Status must be "active" or "archived".')
 
     local_codes = _remove_lang(_codes,'Fr' if lang == 'en' else 'En')
     local_codes = _search_json(local_codes,query,mode)
@@ -451,6 +493,34 @@ def search(query='',last_updated='',dates=[],status='2',mode='AND',lang='en'):
     print(f'Found {len(filtered_tables)} tables matching search criteria, "{query}".\n')
 
     return filtered_tables
+
+def update_list(id='',date=''):
+    """
+    Docstring for update_list
+    """
+
+    if (id.count('-') == 2) & (date == '') & (_vali_date(id)):
+        date = id
+        id = ''
+
+    if (date != '') & (not(_vali_date(date))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+
+    if date == '':
+        date = datetime.now().strftime('%Y-%m-%d')
+
+    url = f"https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList/{date}"
+    resp = requests.get(url)
+    tables = resp.json()
+ 
+    if id != '':
+        for i in tables['object']:
+            if i['productId'] == int(id):
+                return True
+            else:
+                return False
+            
+    elif id == '':
+        return tables['object']
 
 def list_tables(lang='en'):
 
