@@ -100,7 +100,11 @@ def _search_json(obj: dict={}, term: str='', mode: str='AND'):
         pattern = re.compile("|".join(map(re.escape, terms)), re.IGNORECASE | re.DOTALL)
 
     if mode == "AND":
-        regex = "".join(f"(?=.*{re.escape(t)})" for t in term) + ".*"
+        query = [t.strip() for t in term.split(",") if t.strip()]
+        regex = "".join(
+            rf"(?=.*(?:^|\W){re.escape(t)}(?:\W|$))"
+            for t in query
+        )
         pattern = re.compile(regex, re.IGNORECASE | re.DOTALL)
 
     # Case 1: dict
@@ -110,16 +114,15 @@ def _search_json(obj: dict={}, term: str='', mode: str='AND'):
 
         # First pass: detect matches
         child_results = {}
+
         for k, v in obj.items():
-            #key_match = term in k.lower()
-            #value_match = isinstance(v, str) and term in v.lower()
+            
             key_match = bool(pattern.search(k))
             value_match = isinstance(v, str) and bool(pattern.search(v))
-
+            
             nested = None
 
             if isinstance(v, (dict, list)):
-                #nested = _search_json(v, term)
                 nested = _search_json(v, term, mode)
 
             # If this entry matches directly or via nested
@@ -131,6 +134,7 @@ def _search_json(obj: dict={}, term: str='', mode: str='AND'):
         if matched_in_dict:
             for k, v in obj.items():
                 if "Code" in k and k not in child_results:
+                    print(k,v)
                     child_results[k] = v
 
         return child_results if child_results else None
@@ -151,8 +155,13 @@ def _search_json(obj: dict={}, term: str='', mode: str='AND'):
     # Case 3: primitive
     else:
         #if isinstance(obj, str) and term in obj:
-        if isinstance(obj, str) and bool(re.search(obj)):
-            return obj
+        print(obj)
+        try:
+            if isinstance(obj, str) and bool(re.search(obj)):
+                return obj
+        except:
+            pass
+
         return None
 
 def _parse_dim(x,full=True):
@@ -429,14 +438,14 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},lan
 
     return url
 
-def search(query='',last_updated='',dates=[],status='active',mode='AND',lang='en'):
+def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lang='en'):
     """
     Docstring for find_tables
     
     :param query (str): Table attributes you want to search for (names, geographies, etc.)
     :param status (str): Active or Archived
-    :param last_updated (str): Description
-    :param dates ([str,str]): Description
+    :param last_updated (str): Only return tables updated after this date (YYYY-MM-DD)
+    :param data_dates ([str,str]): Only return tables with data in this date range (YYYY-MM-DD)
     :param mode (str): 'AND'[default] or 'OR' search mode for query terms
     :param lang (str): Language ('en' or 'fr')
     """
@@ -457,36 +466,71 @@ def search(query='',last_updated='',dates=[],status='active',mode='AND',lang='en
     local_codes = _search_json(local_codes,query,mode)
 
     parsed_local_codes = {}
+    
+    if local_codes != None:
 
-    for k in local_codes['object'].keys():
-        parsed_local_codes[k] = []
-        for i in local_codes['object'][k]:
-            try:
-                parsed_local_codes[k].append(i[f'{k}Code'])
-            except:
-                pass
+        for k in local_codes['object'].keys():
+            parsed_local_codes[k] = []
+            for i in local_codes['object'][k]:
+                try:
+                    parsed_local_codes[k].append(i[f'{k}Code'])
+                except:
+                    pass
+    print(parsed_local_codes)
     
     tables = _cube_list()
     filtered_tables = []
 
+    mode = mode.upper()
+
+    if mode == "OR":
+        terms = [t.strip() for t in query.split(",") if t.strip()]
+        pattern = re.compile("|".join(map(re.escape, terms)), re.IGNORECASE | re.DOTALL)
+
+    if mode == "AND":
+        query = [t.strip() for t in query.split(",") if t.strip()]
+        regex = "".join(
+            rf"(?=.*(?:^|\W){re.escape(t)}(?:\W|$))"
+            for t in query
+        )
+        pattern = re.compile(regex, re.IGNORECASE | re.DOTALL)
+
     for t in tables:
 
-        if query.lower() in t[f'cubeTitle{lang.capitalize()}'].lower():
-            if (t['productId'] not in filtered_tables) & (t['archived'] == status):
-                filtered_tables.append(t['productId'])
+        cubeTitle = f'cubeTitle{lang.capitalize()}'
+        released = t['releaseTime'][:10]
+        startDate = t['cubeStartDate']
+        endDate = t['cubeEndDate']
+
+        if pattern.search(t[cubeTitle]):
+            if t['archived'] == status:
+
+                # prevent duplicates
+                existing_ids = {list(d.keys())[0] for d in filtered_tables}
+                if t['productId'] in existing_ids:
+                    return  # or continue if in a loop
+
+                if last_updated:
+                    released_date = datetime.strptime(released, "%Y-%m-%d").date()
+                    last_updated_date = datetime.strptime(last_updated, "%Y-%m-%d").date()
+
+                    if released_date >= last_updated_date:
+                        filtered_tables.append({t['productId']: t[cubeTitle]})
+                else:
+                    filtered_tables.append({t['productId']: t[cubeTitle]})
 
         for k in parsed_local_codes.keys():
 
             if  (t['productId'] not in filtered_tables) & (t['archived'] == status):
                 if (k == 'subject') & (len(parsed_local_codes[k]) > 0) & ('subjectCode' in t):
                     try:
-                        filtered_tables.append(t['productId']) if set(parsed_local_codes[k]).intersection(set(t['subjectCode'])) else None
+                        filtered_tables.append({t['productId']:t[f'cubeTitle{lang.capitalize()}']}) if set(parsed_local_codes[k]).intersection(set(t['subjectCode'])) else None
                     except:
                         pass
 
                 if (k == 'survey') & (len(parsed_local_codes[k]) > 0) & (t['surveyCode'] != None):
                     try:
-                        filtered_tables.append(t['productId']) if set(parsed_local_codes[k]).intersection(set(t['surveyCode'])) else None
+                        filtered_tables.append({t['productId']:t[f'cubeTitle{lang.capitalize()}']}) if set(parsed_local_codes[k]).intersection(set(t['surveyCode'])) else None
                     except:
                         pass
 
