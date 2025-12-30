@@ -18,12 +18,12 @@ The returned custom URL that can be used to download a CSV file would be:
 If you don't know what table you want, you can programmatically
 search for tables that match your criteria using:
           
-        ShinySC.search(query,last_updated,dates,status)
+        ShinySC.search(query,last_updated,data_dates,status)
 
-        query: terms to search for in table names, descriptions, and surveys
-        last_updated: 'YYYY-MM-DD' to search for in last updated field
-        dates: list of two strings [start_date,end_date] to filter tables by date range
-        status: 'active' or 'archived' tables
+        query: comma-delimited terms to search for in table names, descriptions, and surveys
+        last_updated: Only return tables updated after this date (YYYY-MM-DD)
+        data_dates: Only return tables with data in this date range (YYYY-MM-DD,YYYY-MM-DD)
+        status: 'active' (default) or 'archived' tables
           
 Call ShinySC.describe(productId) to see available dimensionsthat can be used for filtering.
           

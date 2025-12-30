@@ -246,6 +246,8 @@ def full_metadata(id, timeout=30, lang='en', special=[]):
         dict: JSON response object converted to Python dict.
     """
 
+    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+
     endpoint = "https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata"
 
     # Prepare payload as list of dicts, per documentation example. :contentReference[oaicite:2]{index=2}
@@ -292,6 +294,8 @@ def simple_metadata(id, lang='en'):
         id (int or str): The product ID (PID)
         lang (str): The language ('en' or 'fr')
     """
+
+    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
 
     meta = full_metadata(id,30,lang)
 
@@ -348,6 +352,8 @@ def describe(id, lang='en'):
         id (str, int): productId
         lang (str): The language ('en' or 'fr')
     """
+
+    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
 
     attributes = {}
 
@@ -442,8 +448,8 @@ def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lan
     """
     Docstring for find_tables
     
-    :param query (str): Table attributes you want to search for (names, geographies, etc.)
-    :param status (str): Active or Archived
+    :param query (str): Comma-delimited terms to search for in table names, descriptions, and surveys
+    :param status (str): Active (default) or Archived
     :param last_updated (str): Only return tables updated after this date (YYYY-MM-DD)
     :param data_dates ([str,str]): Only return tables with data in this date range (YYYY-MM-DD)
     :param mode (str): 'AND'[default] or 'OR' search mode for query terms
@@ -452,8 +458,35 @@ def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lan
 
     global _codes
 
-    #Need to look over the code descriptions and grab relevant codes.
-    #Can use this list to filter down datasets that are then searched in name and description
+    #Validate inputs
+    if query == '': raise ValueError('Query cannot be empty.')
+    if query.count(',') >= 10: raise ValueError('Maximum of 10 search terms allowed.')
+    if query.count(',,') > 0: raise ValueError('Empty search terms are not allowed.')
+    if query.startswith(',') or query.endswith(','): raise ValueError('Empty search terms are not allowed.')
+
+    if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')
+    if status.lower() not in ['active','archived']: raise ValueError('Status must be "active" or "archived".')
+    if mode.upper() not in ['AND','OR']: raise ValueError('Mode must be "AND" or "OR".')
+
+    if (last_updated != '') & (not(_vali_date(last_updated))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
+
+    if data_dates != []:
+
+        if len(data_dates) == 2:
+            
+            start = data_dates[0]
+            end = data_dates[1]
+
+            if (start != '') & (not(_vali_date(start))): raise ValueError('Starting data must be a valid date in the format YYYY-MM-DD.')
+            if (start > datetime.now().strftime('%Y-%m-%d')): raise ValueError('Invalid start date. Cannot be in the future.')
+            if (start > end) & (end != ''): raise ValueError('Start date cannot be after end date.')
+
+            if (end != '') & (not(_vali_date(end))): raise ValueError('End data must be a valid date in the format YYYY-MM-DD.')
+            if (end < start) & (start != ''): raise ValueError('End date cannot be after start date.')
+
+    status = status.lower()
+    mode = mode.upper()
+    lang = lang.lower()
 
     if status == 'active':
         status = '2'
@@ -476,12 +509,9 @@ def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lan
                     parsed_local_codes[k].append(i[f'{k}Code'])
                 except:
                     pass
-    print(parsed_local_codes)
     
     tables = _cube_list()
     filtered_tables = []
-
-    mode = mode.upper()
 
     if mode == "OR":
         terms = [t.strip() for t in query.split(",") if t.strip()]
