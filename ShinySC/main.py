@@ -31,6 +31,7 @@ def _vali_date(date_text):
     try:
         datetime.strptime(date_text, '%Y-%m-%d')
         return True
+    
     except ValueError:
         return False
 
@@ -236,15 +237,11 @@ def _parse_filters(filters,id,lang='en'):
 
 def full_metadata(id, timeout=30, lang='en', special=[]):
     """
-    Retrieves metadata for a cube (table) from Statistics Canada WDS.
+    Retrieves metadata for a cube (table) from Statistics Canada WDS in JSON format.
 
-    Args:
-        id (int or str): The product ID (PID) of the cube (e.g., 35100003).
-        timeout (float): Timeout in seconds for the HTTP request.
-        lang (str): Language preference for the metadata ('en', 'fr', or 'all').
-
-    Returns:
-        dict: JSON response object converted to Python dict.
+    :param id (str): productId
+    :param timeout (int): Timeout in seconds for the HTTP request.
+    :param lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
 
     if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
@@ -291,9 +288,8 @@ def simple_metadata(id, lang='en'):
     Retrieves and displays simplified metadata for a cube (table).\n
     This will only show productId, cubeTitle, cubeEndDate, cubeStartDate, and a simplified dimension.
 
-    Args:
-        id (int or str): The product ID (PID)
-        lang (str): The language ('en' or 'fr')
+    :param id (str): productId
+    :param lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
 
     if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
@@ -360,9 +356,8 @@ def describe(id, lang='en'):
     """
     Quickly get key information to help you build a custom query.
 
-    Args:
-        id (str, int): productId
-        lang (str): The language ('en' or 'fr')
+    :param id (str): productId
+    :param lang (str): which langauge you wish to get data in ('en'[default] or 'fr')
     """
 
     if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
@@ -585,7 +580,8 @@ def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lan
 
 def update_list(id='',date=''):
     """
-    Docstring for update_list
+    :param id (str): Product ID of the table to check
+    :param date (str): Date in the format YYYY-MM-DD to check for changes
     """
 
     #if they input just a date in the id field, treat it as date
@@ -615,6 +611,10 @@ def update_list(id='',date=''):
         return tables['object']
 
 def list_tables(lang='en'):
+
+    """
+    :param lang (str): Language of the table to return ('en' or 'fr')
+    """
 
     lang = lang.lower()
     if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')

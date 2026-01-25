@@ -4,9 +4,9 @@ A straight-forward wrapper to build customized table links to Statistics Canada 
 If you already know the productId and filters for the table 
 you want, simply call:
           
-          url = ShinySC.make_url(fitlers={...})
+          url = ShinySC.make_url(id={productId},filters={...})
 
-Addtionally, you can specify date ranges or number of recent periods:
+You can also specify date ranges or number of recent data periods:
           
             url = ShinySC.make_url(periods=5)
             url = ShinySC.make_url(start='2020-01-01',end='2022-01-01')
@@ -25,7 +25,7 @@ search for tables that match your criteria using:
         data_dates: Only return tables with data in this date range (YYYY-MM-DD,YYYY-MM-DD)
         status: 'active' (default) or 'archived' tables
           
-Call ShinySC.describe(productId) to see available dimensionsthat can be used for filtering.
+Call ShinySC.describe(productId) to see available dimensions that can be used for filtering.
           
 Call ShinySC.update_list(date='YYYY-MM-DD') to see recently updated tables for a specfiic date.
 Add in a productId to see if that specific table was updated on that date.
