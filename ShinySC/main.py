@@ -4,25 +4,26 @@ import requests
 import urllib.parse
 from datetime import datetime
 
-print('Getting data from Statistics Canada WDS.')
-
 _cached_metadata = None
 _cached_cube_list = None
 
 _codes = requests.get('https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets')
 _codes = _codes.json()
 
-print('Ready.')
-
 def _fmt_id(id):
+
     id = str(id)
 
     if id.count('-') == 3:
-        a,b,c = id.split('-')
-        return a+b
+        a,b,c,d = id.split('-')
+        return a+b+c
     
+    if id.count('-') == 2:
+        a,b,c = id.split('-')
+        return a+b+c
+
     if len(id) == 10:
-        return id.replace('-','')
+        return id[:8]
     
     return id
 
@@ -246,7 +247,7 @@ def full_metadata(id, timeout=30, lang='en', special=[]):
         dict: JSON response object converted to Python dict.
     """
 
-    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+    if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
 
     endpoint = "https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata"
 
@@ -295,7 +296,7 @@ def simple_metadata(id, lang='en'):
         lang (str): The language ('en' or 'fr')
     """
 
-    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+    if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
 
     meta = full_metadata(id,30,lang)
 
@@ -305,41 +306,52 @@ def simple_metadata(id, lang='en'):
 
     return obj
 
-def instructions():
+def help():
     print("""
 ---------------------------------------------------------
-          
+
+describe(): provides key information about a table to help you build a custom query
+make_url(): builds a custom URL to download data from StatCan WDS
+list_tables (): ists all active tables available on StatCan WDS
+help(): displays this help message
+simple_metadata(): retrieves simplified metadata for a table
+full_metadata(): retrieves full metadata for a table
+search (): earches for tables matching your criteria
+update_list(): checks for recently updated tables
+
+
 If you already know the productId and filters for the table 
 you want, simply call:
           
-          url = ShinySC.make_url(fitlers={...})
+          url = ShinySC.make_url(id={id}, filters={...})
 
 Addtionally, you can specify date ranges or number of recent periods:
           
-            url = ShinySC.make_url(periods=5)
-            url = ShinySC.make_url(start='2020-01-01',end='2022-01-01')
+            url = ShinySC.make_url(id={id}, periods=5)
+            url = ShinySC.make_url(id={id}, start='2020-01-01',end='2022-01-01')
 
 If you don't know what table you want, you can programmatically
-search for tables that match your criteria using:
+search for tables that match your criteria using these criteria:
           
         ShinySC.search(query,last_updated,dates,status)
 
-        query: terms to search for in table names, descriptions, and surveys
-        last_updated: 'YYYY-MM-DD' to search for in last updated field
+        query: comma-separated terms to search for in table names, descriptions, and surveys
+        last_updated: 'YYYY-MM-DD' to search tables updated on or after this date
         dates: list of two strings [start_date,end_date] to filter tables by date range
-        status: 'active' or 'archived' tables
+        status: 'active' or 'archived' tables (default is 'active')
           
 Call ShinySC.describe(productId) to see available dimensionsthat can be used for filtering.
           
 Call ShinySC.update_list(date='YYYY-MM-DD') to see recently updated tables for a specfiic date.
 Add in a productId to see if that specific table was updated on that date.
+          
           ShinySC.update_list(id=35100003,date='2023-01-01')
           
 This library makes use of these endpoints:
-https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets
-https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList
-https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata
-https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList
+https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets  
+https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList  
+https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata  
+https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList  
           
 ---------------------------------------------------------
 """)
@@ -353,7 +365,7 @@ def describe(id, lang='en'):
         lang (str): The language ('en' or 'fr')
     """
 
-    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+    if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
 
     attributes = {}
 
@@ -391,7 +403,7 @@ def make_url(id: int='',periods: int='',start: str='',end: str='',filters={},lan
     full = False
 
     #Validate inputs
-    if (id != '') & (len(str(id)) != 8): raise ValueError('productId must be 8 digits.')
+    if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
     if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')
     if (periods != '') & (not isinstance(periods,int)): raise TypeError('Must be integer number of periods to download.')
 
@@ -457,6 +469,9 @@ def search(query='',last_updated='',data_dates=[],status='active',mode='AND',lan
     """
 
     global _codes
+
+    lang = lang.lower()
+    mode = mode.upper()
 
     #Validate inputs
     if query == '': raise ValueError('Query cannot be empty.')
@@ -573,12 +588,15 @@ def update_list(id='',date=''):
     Docstring for update_list
     """
 
+    #if they input just a date in the id field, treat it as date
     if (id.count('-') == 2) & (date == '') & (_vali_date(id)):
         date = id
         id = ''
 
+    if (id != '') & ((len(str(id)) != 8) | (any(c.isalpha() for c in str(id)))): raise ValueError('productId must be 8 digits.')
     if (date != '') & (not(_vali_date(date))): raise ValueError('Must be a valid date in the format YYYY-MM-DD.')
 
+    #If no date provided, use today's date
     if date == '':
         date = datetime.now().strftime('%Y-%m-%d')
 
@@ -598,6 +616,8 @@ def update_list(id='',date=''):
 
 def list_tables(lang='en'):
 
+    lang = lang.lower()
+    if lang not in ['en','fr']: raise ValueError('Language must be "en" or "fr".')
 
     url = "https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList"
     resp = requests.get(url)

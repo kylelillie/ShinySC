@@ -31,8 +31,8 @@ Call ShinySC.update_list(date='YYYY-MM-DD') to see recently updated tables for a
 Add in a productId to see if that specific table was updated on that date.
           ShinySC.update_list(id=35100003,date='2023-01-01')
           
-This library makes use of these endpoints:
-https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets
-https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList
-https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata
-https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList
+This library makes use of these endpoints:  
+https://www150.statcan.gc.ca/t1/wds/rest/getCodeSets  
+https://www150.statcan.gc.ca/t1/wds/rest/getAllCubesList  
+https://www150.statcan.gc.ca/t1/wds/rest/getCubeMetadata  
+https://www150.statcan.gc.ca/t1/wds/rest/getChangedCubeList  
